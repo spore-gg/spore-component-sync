@@ -78,12 +78,6 @@ export const EMBED_SCHEMA = Joi.object({
     .optional(),
 });
 
-// TODO: actually implement this in app-config.ts
-export const ASSET_SCHEMA = Joi.object({
-  path: Joi.string().required(),
-  quantity: Joi.number().required(),
-});
-
 const POWERUP_SCHEMA = Joi.object({
   slug: Joi.string().required(),
   name: Joi.string().optional(),
@@ -154,7 +148,6 @@ export const ACTION_SCHEMA = Joi.object({
     then: Joi.alternatives()
       .try(
         Joi.string().valid('{{USE_SECURE_PROVIDED}}').required(),
-        Joi.array().items(ASSET_SCHEMA).required(),
         Joi.array().items(ASSET_TEMPLATE_SCHEMA).required(),
       )
       .required(),
