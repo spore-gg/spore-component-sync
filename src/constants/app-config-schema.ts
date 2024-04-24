@@ -122,6 +122,8 @@ export const ACTION_SCHEMA = Joi.object({
     .valid(...OPERATION_TYPES)
     .required(),
 
+  name: Joi.string().optional(),
+
   // webhook inputs
   url: Joi.when('operation', {
     is: 'webhook',
