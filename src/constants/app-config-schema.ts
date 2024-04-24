@@ -19,11 +19,20 @@ export const OPERATION_TYPES = [
   'webhook',
   'workflow',
   'exchange',
+  'apply-powerup',
   // TODO: support these
   // 'conditional',
-  // 'apply-powerup',
 ] as const;
 export type OperationType = (typeof OPERATION_TYPES)[number];
+
+export const ASSET_PARTICIPANT_ENTITY_TYPES = [
+  'user',
+  'org-member',
+  'org',
+  'company',
+] as const;
+export type AssetParticipantEntityType =
+  (typeof ASSET_PARTICIPANT_ENTITY_TYPES)[number];
 
 const COUNTABLE_SCHEMA = Joi.object({
   slug: Joi.string().required(),
@@ -63,23 +72,69 @@ export const EMBED_SCHEMA = Joi.object({
   minTruffleVersion: Joi.string().optional(),
   maxTruffleVersion: Joi.string().optional(),
   deviceType: Joi.string().valid('desktop', 'mobile').optional(),
+  parentQuerySelector: Joi.string().optional(),
   status: Joi.string()
     .valid('published', 'experimental', 'disabled')
     .optional(),
 });
 
-export const ASSET_SCHEMA = Joi.object({
-  path: Joi.string().required(),
-  quantity: Joi.number().required(),
+const POWERUP_SCHEMA = Joi.object({
+  slug: Joi.string().required(),
+  name: Joi.string().optional(),
+  data: Joi.object().optional(),
+  imageFileReference: Joi.object().optional(),
 });
+
+const ASSET_PARTICIPANT_TEMPLATE_SCHEMA = Joi.object({
+  entityType: Joi.string()
+    .valid(...ASSET_PARTICIPANT_ENTITY_TYPES)
+    .required(),
+  entityId: Joi.string().required(),
+  share: Joi.number().required(),
+});
+
+const ASSET_TEMPLATE_SCHEMA = Joi.object({
+  entityType: Joi.string().valid('countable', 'fiat'),
+  entityId: Joi.string(),
+  entityPath: Joi.string(),
+  count: Joi.alternatives()
+    .try(
+      Joi.number().required(),
+      Joi.string().valid('{{USE_PROVIDED}}').required(),
+    )
+    .required(),
+  metadata: Joi.object().optional(),
+  senders: Joi.array().items(ASSET_PARTICIPANT_TEMPLATE_SCHEMA).required(),
+  receivers: Joi.array().items(ASSET_PARTICIPANT_TEMPLATE_SCHEMA).required(),
+})
+  // this makes it so that either entityId and entityType is required or entityPath is required
+  .with('entityId', 'entityType')
+  .xor('entityPath', 'entityId');
 
 export const ACTION_SCHEMA = Joi.object({
   operation: Joi.string()
     .valid(...OPERATION_TYPES)
     .required(),
+
+  name: Joi.string().optional(),
+
+  // webhook inputs
   url: Joi.when('operation', {
     is: 'webhook',
     then: Joi.string().required(),
+  }),
+
+  data: Joi.when('operation', {
+    is: 'webhook',
+    then: Joi.alternatives()
+      .try(Joi.object(), Joi.string().valid('{{USE_PROVIDED}}'))
+      .optional(),
+  }),
+
+  // workflow inputs
+  strategy: Joi.when('operation', {
+    is: 'workflow',
+    then: Joi.string().valid('sequential', 'parallel').required(),
   }),
 
   actions: Joi.when('operation', {
@@ -87,9 +142,36 @@ export const ACTION_SCHEMA = Joi.object({
     then: Joi.array().items(Joi.link('#actionSchema')).required(),
   }),
 
-  strategy: Joi.when('operation', {
-    is: 'workflow',
-    then: Joi.string().valid('sequential', 'parallel').required(),
+  // exchange inputs
+  assets: Joi.when('operation', {
+    is: 'exchange',
+    then: Joi.alternatives()
+      .try(
+        Joi.string().valid('{{USE_SECURE_PROVIDED}}').required(),
+        Joi.array().items(ASSET_TEMPLATE_SCHEMA).required(),
+      )
+      .required(),
+  }),
+
+  // apply-pwerup inputs
+  powerup: Joi.when('operation', {
+    is: 'apply-powerup',
+    then: Joi.alternatives().try(Joi.string(), POWERUP_SCHEMA).required(),
+  }),
+
+  targetType: Joi.when('operation', {
+    is: 'apply-powerup',
+    then: Joi.string().required(),
+  }),
+
+  targetId: Joi.when('operation', {
+    is: 'apply-powerup',
+    then: Joi.string().required(),
+  }),
+
+  ttlSeconds: Joi.when('operation', {
+    is: 'apply-powerup',
+    then: Joi.number().required(),
   }),
 
   inputsTemplate: Joi.object().optional(),
@@ -108,9 +190,7 @@ export const PRODUCT_VARIANT_SCHEMA = Joi.object({
   name: Joi.string().optional(),
   price: Joi.number().required(),
   description: Joi.string().optional(),
-
   action: ACTION_SCHEMA.optional(),
-
   assets: Joi.array().items(ASSET_SCHEMA).optional(),
 });
 
@@ -131,4 +211,8 @@ export const APP_CONFIG_SCHEMA = Joi.object({
   countables: Joi.array().items(COUNTABLE_SCHEMA).optional(),
   products: Joi.array().items(PRODUCT_SCHEMA).optional(),
   actions: Joi.array().items(ACTION_WITH_SLUG_SCHEMA).optional(),
+  powerups: Joi.array().items(POWERUP_SCHEMA).optional(),
+  postInstallAction: Joi.alternatives()
+    .try(Joi.string(), ACTION_SCHEMA)
+    .optional(),
 });

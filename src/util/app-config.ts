@@ -44,6 +44,10 @@ export function makeLocalActionPath(actionSlug: string) {
   return `./_Action/${actionSlug}`;
 }
 
+export function makeLocalPowerupPath(powerupSlug: string) {
+  return `./_Powerup/${powerupSlug}`;
+}
+
 type ActionConfig = NonNullable<AppConfig['actions']>[number];
 type EmbeddedActionConfig = Omit<ActionConfig, 'slug'>;
 
@@ -54,40 +58,71 @@ export function convertActionConfigsToMothertreeActionConfigs(
   mtAppConfig.actions.push(
     ...actionConfigs.map((actionConfig) => {
       let inputsTemplate: Record<string, unknown>;
-      if (actionConfig.operation === 'workflow') {
-        inputsTemplate = {
-          // if the action is a workflow, we need to create a new action for each sub-action
-          // and add the sub-action paths to the inputsTemplate
-          actionPaths: actionConfig.actions.map(
-            // a sub action could either be an action path or an embedded action
-            (subAction: EmbeddedActionConfig | string, subActionIdx) => {
-              // if the sub-action is a string, it's an action path, so just return it
-              if (typeof subAction === 'string') {
-                return subAction;
-              }
+      switch (actionConfig.operation) {
+        case 'workflow': {
+          inputsTemplate = {
+            // if the action is a workflow, we need to create a new action for each sub-action
+            // and add the sub-action paths to the inputsTemplate
+            actionPaths: actionConfig.actions.map(
+              // a sub action could either be an action path or an embedded action
+              (subAction: EmbeddedActionConfig | string, subActionIdx) => {
+                // if the sub-action is a string, it's an action path, so just return it
+                if (typeof subAction === 'string') {
+                  return subAction;
+                }
 
-              // if the sub-action is an embedded action, we need to create a new action
-              const slug = `${actionConfig.slug}-step-${subActionIdx}`;
+                // if the sub-action is an embedded action, we need to create a new action
+                const slug = `${actionConfig.slug}-step-${subActionIdx}`;
 
-              // add the sub-action to the actions array
-              convertActionConfigsToMothertreeActionConfigs(
-                [{ ...subAction, slug }],
-                mtAppConfig,
-              );
+                // add the sub-action to the actions array
+                convertActionConfigsToMothertreeActionConfigs(
+                  [{ ...subAction, slug }],
+                  mtAppConfig,
+                );
 
-              return makeLocalActionPath(slug);
-            },
-          ),
+                return makeLocalActionPath(slug);
+              },
+            ),
 
-          // pass along the strategy
-          strategy: actionConfig.strategy,
-        };
-      } else {
-        // if the action is not a workflow, we can just fill in url and assets
-        inputsTemplate = {
-          ...actionConfig.inputsTemplate,
-          ..._.pick(actionConfig, ['url', 'assets']),
-        };
+            // pass along the strategy
+            strategy: actionConfig.strategy,
+          };
+          break;
+        }
+
+        case 'apply-powerup': {
+          // actionConfig.powerup is either a string or an object containing a powerup config
+          let powerupPath: string = '';
+          if (typeof actionConfig.powerup === 'string') {
+            powerupPath = actionConfig.powerup;
+          } else {
+            mtAppConfig.powerups.push(actionConfig.powerup);
+            powerupPath = makeLocalPowerupPath(actionConfig.powerup.slug);
+          }
+
+          inputsTemplate = {
+            powerupPath: powerupPath,
+            targetType: actionConfig.targetType,
+            targetId: actionConfig.targetId,
+            ttlSeconds: actionConfig.ttlSeconds,
+          };
+          break;
+        }
+
+        case 'webhook': {
+          inputsTemplate = {
+            url: actionConfig.url,
+            data: actionConfig.data,
+          };
+          break;
+        }
+
+        case 'exchange': {
+          inputsTemplate = {
+            assets: actionConfig.assets,
+          };
+          break;
+        }
       }
 
       return {
@@ -180,7 +215,8 @@ export function convertProductConfigsToMothertreeProductAndVariantConfigs(
                     // tbh I don't know why we have to cast this
                   } as MothertreeAssetParticipantTemplate,
                 ],
-                // TODO: if we want, we can change this to do rev/share split with org, us, and dev
+                // TODO: if we want, we can change this to do rev/share split with org, us, and dev...
+                // this might not be the place to do that though
                 receivers: [
                   {
                     entityType: 'org',
@@ -213,8 +249,9 @@ export function convertAppConfigToMothertreeConfig(appConfig: AppConfig) {
     name: appConfig.name,
     cliVersion: appConfig.cliVersion,
     embeds: appConfig.embeds ?? [],
-    actions: [],
     countables: appConfig.countables ?? [],
+    powerups: appConfig.powerups ?? [],
+    actions: [],
     products: [],
     productVariants: [],
   };
@@ -223,6 +260,30 @@ export function convertAppConfigToMothertreeConfig(appConfig: AppConfig) {
     convertActionConfigsToMothertreeActionConfigs(
       appConfig.actions,
       mtAppConfig,
+    );
+  }
+
+  if (typeof appConfig.postInstallAction === 'string') {
+    mtAppConfig.postInstallActionPath = appConfig.postInstallAction;
+  }
+  // if postInstallAction is an object, we need to convert it to a MothertreeActionConfig,
+  // and add it to the actions array, and set the postInstallActionPath
+  else if (appConfig.postInstallAction != null) {
+    // add a slug to the action config
+    const postInstallAction = {
+      ...appConfig.postInstallAction,
+      slug: 'post-install-action',
+    };
+
+    // add the action to the actions array
+    convertActionConfigsToMothertreeActionConfigs(
+      [postInstallAction],
+      mtAppConfig,
+    );
+
+    // set the postInstallActionPath
+    mtAppConfig.postInstallActionPath = makeLocalActionPath(
+      postInstallAction.slug,
     );
   }
 

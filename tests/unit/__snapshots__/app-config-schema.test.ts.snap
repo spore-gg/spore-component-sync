@@ -2,6 +2,34 @@
 
 exports[`app-config-schema > ACTION_SCHEMA > should throw an error if a sub-action is invalid 1`] = `[ValidationError: "actions[0].url" is required]`;
 
+exports[`app-config-schema > ACTION_SCHEMA > should throw an error if an apply-powerup action is invalid 1`] = `
+[ValidationError: {
+  "operation": "apply-powerup",
+  "targetType": "chat",
+  "targetId": "chatId",
+  "ttlSeconds": 60,
+  [41m"powerup"[0m[31m [1]: -- missing --[0m
+}
+[31m
+[1] "powerup" is required[0m]
+`;
+
+exports[`app-config-schema > ACTION_SCHEMA > should throw an error if data is an invalid string 1`] = `[ValidationError: "data" must be one of [object, {{USE_PROVIDED}}]]`;
+
+exports[`app-config-schema > APP_CONFIG_SCHEMA > should throw an error if postInstallAction is invalid 1`] = `
+[ValidationError: {
+  "path": "@truffle/test-app",
+  "name": "test-app",
+  "cliVersion": "1.0.0",
+  "postInstallAction": {
+    "operation": "webhook",
+    [41m"url"[0m[31m [1]: -- missing --[0m
+  }
+}
+[31m
+[1] "postInstallAction.url" is required[0m]
+`;
+
 exports[`app-config-schema > EMBED_SCHEMA > should throw an error if contentPageType is invalid 1`] = `
 [ValidationError: {
   "slug": "test-embed",

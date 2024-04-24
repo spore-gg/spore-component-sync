@@ -9,6 +9,8 @@ export interface MothertreeAppConfig {
   countables: MothertreeCountableConfig[];
   products: MothertreeProductConfig[];
   productVariants: MothertreeProductVariantConfig[];
+  powerups: MothertreePowerupConfig[];
+  postInstallActionPath?: string;
 }
 
 export interface MothertreeEmbedConfig {
@@ -95,4 +97,11 @@ export interface MothertreeAssetParticipantTemplate {
   entityType: 'user' | 'org-member' | 'org' | 'company';
   entityId: string | '{{USE_PROVIDED}}' | '{{USE_USER_ID}}' | '{{USE_ORG_ID}}';
   share: number;
+}
+
+export interface MothertreePowerupConfig {
+  slug: string;
+  name?: string;
+  data?: object;
+  imageFileReference?: object;
 }
